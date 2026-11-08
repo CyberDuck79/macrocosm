@@ -12,7 +12,8 @@ It is written from scratch in SuperCollider and Lua. macrocosm is not affiliated
 
 ## Requirements
 
-- norns. Developed and tested on a norns shield (Raspberry Pi 4). On a Pi 4, the engine uses about 30–35 % of the CPU.
+- norns. Developed and tested on a norns shield (Raspberry Pi 4). Not tested yet on a Pi 3 or a standard norns.
+- CPU, measured on a Pi 4 (SuperCollider DSP load, norns included): 25–27 % for Strum, Arp, Blocks, Interrupt and Seq, about 31 % for Glide and Tunnel, 35–36 % for Pattern and Warp, and from 30 % up to 38 % for Mosaic and Haze as Activity and Repeats go up.
 - Audio input: a guitar or any other instrument. Mono (left input) by default. Switch to stereo in PARAMETERS.
 - Optional: a MIDI controller, and the `matrix` and `toolkit` mods.
 
