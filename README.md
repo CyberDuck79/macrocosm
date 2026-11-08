@@ -68,7 +68,7 @@ Labels are dim when idle, bright when active, and blink while something is in pr
 
 ![K1 held](img/shift.png)
 
-While K1 is held, the second line shows the family and the TIME value.
+While K1 is held, the second line shows the family and its number (for example `micro loop  1/4`).
 
 ## Pages
 

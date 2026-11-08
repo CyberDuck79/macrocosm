@@ -1,18 +1,17 @@
 -- macrocosm
--- granulaire façon Microcosm
--- micro loop, granules,
--- multidelay, glitch
+-- granular micro-looper
+-- inspired by the Microcosm
 --
--- E1 page, E2 / E3 réglages
--- K1 maintenu : E1 famille,
--- E2 effet, E3 variation
+-- E1 page, E2 / E3 controls
+-- hold K1: E1 family,
+-- E2 effect, E3 variation
 -- K2 hold, K3 reverse
--- K1 + K2 looper, K1 + K3 sens boucle
--- looper : K2 rec / play / dub
--- (maintenu : annule dub),
--- K3 stop (maintenu : efface)
--- MIDI : table du manuel,
--- canal 1 (voir PARAMETERS)
+-- K1 + K2 looper on / off
+-- K1 + K3 reverse
+-- looper: K2 rec / play / dub
+-- (long press: undo dub),
+-- K3 stop (long press: erase)
+-- MIDI: see the manual
 
 engine.name = "Macrocosm"
 

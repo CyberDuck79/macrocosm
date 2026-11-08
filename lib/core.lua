@@ -1,4 +1,4 @@
--- macrocosm : base commune des scripts
+-- macrocosm : le cœur du script
 --
 -- paramètres, horloge (TIME), têtes de lecture, Hold / Reverse et interface.
 -- un algorithme est un module qui expose :
@@ -475,11 +475,11 @@ function core.cleanup()
 end
 
 ---------------------------------------------------------------------------
--- interface : E1 page, E2 / E3 les deux réglages de la page,
+-- interface : E1 page, E2 / E3 les deux réglages de la page ;
+-- K2 Hold, K3 Reverse ; quand le looper est actif, K2 et K3 le pilotent
+-- (voir looper.lua).
 -- K1 maintenu : E1 famille, E2 effet (dans la famille), E3 variation,
 -- K2 entre dans le looper / en sort, K3 Reverse de l'effet.
--- K2 Hold, K3 Reverse ; quand le looper est actif, K2 et K3 le pilotent
--- (voir looper.lua)
 
 -- premier et dernier index (dans algos) des effets de la famille f
 local function family_range(f)

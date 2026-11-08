@@ -1,4 +1,4 @@
-// Engine_Macrocosm : moteur commun des scripts macrocosm.
+// Engine_Macrocosm : le moteur de macrocosm.
 //
 // Le moteur ne contient aucun algorithme : il fournit les briques audio, et
 // les algorithmes (Mosaic, Haze...) vivent en Lua, qui pilote les têtes de
@@ -765,8 +765,6 @@ Engine_Macrocosm : CroneEngine {
 		delaySynth = syn;
 	}
 
-	// L'entrée est coupée et la traîne s'éteint (feedback ramené à 0,5 au
-	// plus, Hold relâché), puis le synth se libère.
 	// Exécute les messages serveur de func à l'instant prévu (lead > 0, avec
 	// la marge minimale) ou tout de suite (lead <= 0).
 	atLead { |lead, func|
@@ -804,6 +802,8 @@ Engine_Macrocosm : CroneEngine {
 		};
 	}
 
+	// L'entrée est coupée et la traîne s'éteint (feedback ramené à 0,5 au
+	// plus, Hold relâché), puis le synth se libère.
 	stopDelay {
 		if(delaySynth.notNil) {
 			delaySynth.set(\run, 0, \hold, 0, \fb, delayState.fb.min(0.5));
