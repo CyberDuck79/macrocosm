@@ -303,15 +303,11 @@ Engine_Macrocosm : CroneEngine {
 		}).add;
 
 		// Têtes de lecture : une variante par combinaison d'options, pour ne
-		// payer le filtre et le bitcrush que quand on s'en sert.
-		[
-			[\macrocosm_voice, false, false],
-			[\macrocosm_voice_f, true, false],
-			[\macrocosm_voice_c, false, true],
-			[\macrocosm_voice_fc, true, true]
-		].do { |def|
-			this.addVoiceDef(*def);
-		};
+		// payer le filtre, le bitcrush et la lecture de bouclage que quand on
+		// s'en sert.
+		[false, true].do { |f| [false, true].do { |c| [false, true].do { |l|
+			this.addVoiceDef(this.class.voiceName(f, c, l), f, c, l);
+		} } };
 
 		// Réverbe : JPverb, précédée d'un pré-délai et de Bloom (12 départs de
 		// plus en plus forts étalés dans le temps, chaque note monte dans
@@ -508,9 +504,18 @@ Engine_Macrocosm : CroneEngine {
 		}).add;
 	}
 
-	addVoiceDef { |name, withFilter, withCrush|
+	// macrocosm_voice, puis _f (filtre), _c (bitcrush), _n (sans bouclage)
+	*voiceName { |withFilter, withCrush, withLoop|
+		var opts = (if(withFilter) { "f" } { "" }) ++ (if(withCrush) { "c" } { "" });
+		^("macrocosm_voice" ++ (if(opts.isEmpty) { "" } { "_" ++ opts }) ++ (if(withLoop) { "" } { "_n" })).asSymbol
+	}
+
+	// Coût mesuré sur Pi 4, script en marche (2026-11-09) : 1,3 % par tête
+	// avant ; 0,93 % avec l'enveloppe de Shape en contrôle, 0,53 % sans la
+	// lecture de bouclage ; filtre et bitcrush ajoutent environ 0,6 %.
+	addVoiceDef { |name, withFilter, withCrush, withLoop|
 		SynthDef(name, { |out, buf, phaseBus, ago = 1000, segLen = 1000,
-			rate = 1, rateEnd = 1, life = 1, loop = 1, xfade = 0.05,
+			rate = 1, rateEnd = 1, life = 1, xfade = 0.05,
 			gain = 0.5, pan = 0, shape = 0.5,
 			ftype = 0, f0 = 1000, f1 = 1000, fq = 0.707, lfoRate = 0, lfoDepth = 0,
 			bits = 8, crushHold = 1, glideHz = 0, glideWidth = 0.5,
@@ -530,23 +535,31 @@ Engine_Macrocosm : CroneEngine {
 			var len = (segLen * (2 ** (lenDepth * lenMod))).max(16);
 			var ph = Phasor.ar(0, r, 0, len);
 			var pos = start + ph;
-			var xLen = (xfade * len).max(1);
-			var w = ((ph - (len - xLen)) / xLen).clip(0, 1) * loop;
-			var t = Line.ar(0, 1, life, doneAction: 2);
+			var xLen, w;
+			// le temps à l'échantillon près, pour les fondus de 3 ms et la fin
+			var age = Line.ar(0, life, life, doneAction: 2);
+			var t = Line.kr(0, 1, life);
 			var sh2 = shape * 2;
 			var attack = (sh2 - 1).clip(0, 1).linlin(0, 1, 0.01, 0.85);
 			var k = sh2.clip(0, 1).linlin(0, 1, 5, 0.15);
-			var age = t * life;
-			var sig, env, fc, tk, lvl, step, angle;
+			var sig, env, edges, fc, tk, lvl, step, angle;
 
-			// Bouclage sans clic : on fond vers la matière juste avant le début du segment.
-			sig = (BufRd.ar(2, buf, pos.wrap(0, frames), 1, 4) * (w * 0.5pi).cos)
-				+ (BufRd.ar(2, buf, (pos - len).wrap(0, frames), 1, 4) * (w * 0.5pi).sin);
+			sig = BufRd.ar(2, buf, pos.wrap(0, frames), 1, 4);
+			if(withLoop) {
+				// Bouclage sans clic : on fond vers la matière juste avant le début du segment.
+				xLen = (xfade * len).max(1);
+				w = ((ph - (len - xLen)) / xLen).clip(0, 1);
+				sig = (sig * (w * 0.5pi).cos)
+					+ (BufRd.ar(2, buf, (pos - len).wrap(0, frames), 1, 4) * (w * 0.5pi).sin);
+			};
 
-			// Shape : 0 = percussif, 0,5 = plat, 1 = montée lente. Fondus de 3 ms aux bords.
+			// Shape : 0 = percussif, 0,5 = plat, 1 = montée lente. Calculée en
+			// contrôle (une valeur par bloc de 64, interpolée) : c'est le plus
+			// coûteux de la tête. Les fondus de 3 ms aux bords restent à
+			// l'échantillon : ce sont eux qui évitent les clics.
 			env = ((t / attack).clip(0, 1) * 0.5pi).sin.squared
 				* (1 - ((t - attack) / (1 - attack + 1e-6)).clip(0, 1)).pow(k);
-			env = env * (age / 0.003).clip(0, 1) * ((life - age) / 0.003).clip(0, 1);
+			edges = (age / 0.003).clip(0, 1) * ((life - age) / 0.003).clip(0, 1);
 
 			if(withFilter) {
 				tk = Line.kr(0, 1, life);
@@ -563,12 +576,12 @@ Engine_Macrocosm : CroneEngine {
 				sig = Latch.ar(sig, Impulse.ar(SampleRate.ir / crushHold)).round(step);
 			};
 
-			sig = sig * env * gain;
+			sig = sig * edges * (env * gain);
 			angle = (pan + 1) * 0.25pi;
 			// OffsetOut décale la sortie à l'échantillon exact de l'horodatage,
 			// au lieu du début du bloc de 64 où scsynth démarre le synth.
 			OffsetOut.ar(out, [sig[0] * angle.cos, sig[1] * angle.sin]);
-			Out.kr(duckBus, A2K.kr(env) * duck);
+			Out.kr(duckBus, env * duck);
 		}).add;
 	}
 
@@ -696,7 +709,7 @@ Engine_Macrocosm : CroneEngine {
 
 	spawnVoice { |ago, len, rate, rateEnd, life, loop, xfade, gain, pan, shape, delay, lead|
 		var sr = context.server.sampleRate;
-		var name = \macrocosm_voice;
+		var name = this.class.voiceName(nextFilter.notNil, nextCrush.notNil, loop > 0);
 		// Un événement « maintenant » (lead <= 0) part avec l'avance standard.
 		// Un événement prévu part à son instant, tant qu'il reste la marge
 		// minimale pour que le bundle arrive à temps. Si la tête part après
@@ -705,14 +718,10 @@ Engine_Macrocosm : CroneEngine {
 		var startIn = if(lead > 0) { max(lead, safety) } { latency } + delay;
 		var offset = if(holding) { 0 } { startIn - lead };
 		var args, start;
-		if(nextFilter.notNil and: { nextCrush.notNil }) { name = \macrocosm_voice_fc } {
-			if(nextFilter.notNil) { name = \macrocosm_voice_f };
-			if(nextCrush.notNil) { name = \macrocosm_voice_c };
-		};
 		args = [
 			\out, wetBus, \buf, historyBuf, \phaseBus, phaseBus, \envBus, envBus, \duckBus, duckBus,
 			\ago, ((ago + offset) * sr).round, \segLen, (len * sr).max(16), \rate, rate, \rateEnd, rateEnd,
-			\life, life, \loop, loop, \xfade, xfade, \gain, gain, \pan, pan, \shape, shape
+			\life, life, \xfade, xfade, \gain, gain, \pan, pan, \shape, shape
 		] ++ (nextFilter ? []) ++ (nextCrush ? []) ++ (nextGlide ? []) ++ (nextLen ? []) ++ (nextDuck ? []);
 		nextLen = nil;
 		nextDuck = nil;
