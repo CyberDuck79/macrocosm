@@ -30,7 +30,8 @@ Engine_Macrocosm : CroneEngine {
 	// heure. Mesuré sur le norns (2026-11-08) : aucun bundle en retard dès
 	// 12 ms d'avance, même chargé ; à 10 ms, un sur trois. On garde le double.
 	// Les têtes calées sur la grille ne dépendent pas de latency : Lua se
-	// réveille 50 ms avant (LEAD dans core.lua) et donne l'instant exact.
+	// réveille 50 ms avant (LEAD dans timing.lua, qui reprend aussi ces deux
+	// valeurs : NOW et SAFETY) et donne l'instant exact.
 	classvar <latency = 0.025, <safety = 0.015;
 
 	// Les 4 modes de réverbe du Microcosm (A Bright Room, B Dark Medium,

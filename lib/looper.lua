@@ -21,9 +21,9 @@ local LENGTH_NAMES = { "free", "1 bar", "2 bars", "4 bars", "8 bars" }
 local LENGTH_BARS = { 0, 1, 2, 4, 8 }
 local MAX_SECONDS = 60
 local LONG_PRESS = 0.6
--- même réveil anticipé que les têtes (LEAD de core.lua) : les départs calés
+-- même réveil anticipé que les têtes (timing.lua) : les départs calés
 -- sur l'horloge sont envoyés d'autant en avance, pour tomber pile
-local LEAD = 0.05
+local LEAD = include("lib/timing").LEAD
 -- la phrase est fermée un peu après sa longueur exacte, pour que tout ce
 -- qui est relu ait bien été enregistré
 local CLOSE_MARGIN = 0.01
