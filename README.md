@@ -447,6 +447,10 @@ macrocosm is its own instrument, not an emulation. Some things work differently:
 
 ---
 
+## For developers
+
+How the code is organised, why, and where to change things: [ARCHITECTURE.md](https://github.com/CyberDuck79/macrocosm/blob/main/ARCHITECTURE.md).
+
 ## Credits
 
 - Inspired by the **Hologram Electronics Microcosm**. macrocosm is not affiliated with or endorsed by Hologram Electronics.
