@@ -12,8 +12,8 @@ It is written from scratch in SuperCollider and Lua. macrocosm is not affiliated
 
 ## Requirements
 
-- norns. Developed and tested on a norns shield (Raspberry Pi 4). Not tested yet on a Pi 3 or a standard norns.
-- CPU, measured on a Pi 4 (SuperCollider DSP load, norns included): 25–27 % for Strum, Arp, Blocks, Interrupt and Seq, about 31 % for Glide and Tunnel, 35–36 % for Pattern and Warp, and from 30 % up to 38 % for Mosaic and Haze as Activity and Repeats go up.
+- norns. Developed and tested on a norns shield (Raspberry Pi 4). On a Pi 3 or a standard norns, macrocosm switches itself to a lighter mode (see **CPU mode** below); not tested on that hardware yet.
+- CPU on a Pi 4: 25 to 38 % of the audio engine depending on the effect, 13 to 24 % in lite mode (see **CPU mode**).
 - Audio input: a guitar or any other instrument. Mono (left input) by default. Switch to stereo in PARAMETERS.
 - Optional: a MIDI controller, and the `matrix` and `toolkit` mods.
 
@@ -407,11 +407,29 @@ With the `matrix` mod enabled (SYSTEM > MODS, then restart), every continuous se
 
 Everything above is also in PARAMETERS, under three sections:
 
-- **macrocosm**: input (mono / stereo), effect and all its settings, time mode, reverb, colour, attack sens, hold, reverse, bypass, tap tempo.
+- **macrocosm**: input (mono / stereo), cpu mode, effect and all its settings, time mode, reverb, colour, attack sens, hold, reverse, bypass, tap tempo.
 - **looper**: all looper settings, metronome and beats per bar.
 - **midi**: control, port, channel.
 
 **attack sens** (page 11) sets how easily a note is detected. Raise it if Strum, Arp or Tunnel miss soft notes, lower it if they react to noise.
+
+### CPU mode
+
+macrocosm reads which Raspberry Pi it runs on. On a Pi 4 or newer it runs in **full** mode. On a Pi 3 or a standard norns (Compute Module 3) it runs in **lite** mode, which needs 40 to 50 % less CPU:
+
+- a lighter reverb (FreeVerb instead of JPverb). The six modes keep their character settings, but the tails sound simpler, longer modes are capped around 10 s, and **cathedral** has no bloom;
+- at most 10 voices at once instead of 24, so Mosaic and Haze get thinner at high Activity.
+
+**cpu mode** (PARAMETERS) shows what was detected, for example `auto (pi 4: full)`. Set it to *full* or *lite* to force one. Switching cuts the reverb tail.
+
+Measured on a Pi 4 (SuperCollider DSP load, norns included), with Activity and Repeats at maximum:
+
+| Effects | full | lite |
+|---|---|---|
+| Strum, Arp, Blocks, Interrupt, Seq | 25–27 % | 13–15 % |
+| Glide, Tunnel, Pattern, Warp | 30–31 % | 18–19 % |
+| Haze | 38 % | 19 % |
+| Mosaic | 37.5 % | 23.5 % |
 
 ---
 

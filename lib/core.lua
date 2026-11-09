@@ -192,6 +192,23 @@ end
 ---------------------------------------------------------------------------
 -- têtes de lecture
 
+-- mode lite (Pi 3, norns standard) : moins de têtes, réverbe légère dans
+-- l'engine. Mesuré sur Pi 4 : le mode complet va jusqu'à 38 % ; un Pi 3
+-- tient à peu près ce qu'un Pi 4 fait sous 25 %.
+local FULL_VOICES, LITE_VOICES = 24, 10
+core.voice_cap = FULL_VOICES
+
+-- génération du Raspberry Pi (3, 4...), lue dans le modèle de la carte :
+-- « Raspberry Pi 4 Model B », « Raspberry Pi 3 Model B Plus »,
+-- « Raspberry Pi Compute Module 3 Plus » (norns standard). nil si inconnue.
+local function pi_generation()
+  local f = io.open("/proc/device-tree/model", "r")
+  if not f then return nil end
+  local model = f:read("*a") or ""
+  f:close()
+  return tonumber(model:match("Pi (%d)") or model:match("Compute Module (%d)"))
+end
+
 function core.active_count()
   local now = util.time()
   for i = #voice_ends, 1, -1 do
@@ -206,6 +223,7 @@ end
 -- len_mod = {hz, depth (octaves), mode 0 = LFO / 1 = enveloppe du jeu},
 -- ducks = true : coupe le sec tant que la tête sonne (Interrupt)
 function core.spawn(v)
+  if core.active_count() >= core.voice_cap then return end
   local rate = v.rate or 1
   local rate_end = v.rate_end or rate
   if params:get("reverse") == 1 then
@@ -300,6 +318,17 @@ function core.add_params()
   -- canal gauche de norns, il est alors envoyé des deux côtés)
   params:add_option("input", "input", { "mono (left)", "stereo" }, 1)
   params:set_action("input", function(i) engine.input_mono(i == 1 and 1 or 0) end)
+
+  -- auto : lite sur un Pi 3 ou plus ancien (et un norns standard)
+  local gen = pi_generation()
+  local auto_lite = gen ~= nil and gen < 4
+  local auto_name = "auto (" .. (gen and ("pi " .. gen .. ": ") or "") .. (auto_lite and "lite" or "full") .. ")"
+  params:add_option("cpu_mode", "cpu mode", { auto_name, "full", "lite" }, 1)
+  params:set_action("cpu_mode", function(i)
+    local lite = i == 3 or (i == 1 and auto_lite)
+    core.voice_cap = lite and LITE_VOICES or FULL_VOICES
+    engine.lite(lite and 1 or 0)
+  end)
 
   local names = {}
   for i, a in ipairs(algos) do names[i] = string.lower(a.name) end

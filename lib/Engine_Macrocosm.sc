@@ -15,6 +15,9 @@
 // qu'elle reçoit et où elle ressort, sans couper sa queue.
 Engine_Macrocosm : CroneEngine {
 	classvar <maxVoices = 24;
+	// mode lite (Pi 3) : réverbe légère et moins de têtes
+	classvar <liteVoices = 10;
+	var lite = false, voiceCap = 24;
 	// 2^20 images : ~21,8 s à 48 kHz. Au-delà, un index float32 perd sa
 	// précision fractionnaire (1/16 d'échantillon ici).
 	classvar <historyFrames = 1048576;
@@ -98,7 +101,7 @@ Engine_Macrocosm : CroneEngine {
 		revRetBus = Bus.audio(s, 2);
 		// pré-délai et Bloom de la réverbe
 		revBuf = Buffer.alloc(s, s.sampleRate * 2, 2);
-		revState = (mode: 2, character: 0.5);
+		revState = (mode: 2, character: 0.5, space: 0.25, before: 0);
 		liveBus = Bus.audio(s, 2);
 		mainBus = Bus.audio(s, 2);
 		loopPreBus = Bus.audio(s, 2);
@@ -309,39 +312,9 @@ Engine_Macrocosm : CroneEngine {
 			this.addVoiceDef(this.class.voiceName(f, c, l), f, c, l);
 		} } };
 
-		// Réverbe : JPverb, précédée d'un pré-délai et de Bloom (12 départs de
-		// plus en plus forts étalés dans le temps, chaque note monte dans
-		// l'espace). Shimmer : une copie de la queue limitée en fréquence,
-		// montée d'une octave, repart dans la réverbe ; le passe-bas fait
-		// qu'elle ne grimpe que d'une ou deux octaves. Tilt : pente autour de
-		// 2 kHz (Air, Warmth).
-		SynthDef(\macrocosm_rev, { |in, send, ret, fed, buf, space = 0.25, before = 0,
-			t60 = 4.5, damp = 0.3, size = 2.5, revMod = 0.3, revFreq = 2, diff = 0.707,
-			pre = 0, bloom = 0, tilt = 1, shim = 0, shimCut = 3500|
-			var x = In.ar(in, 2);
-			var sp = space.lag(0.05), b = before.lag(0.05);
-			var src = InFeedback.ar(send, 2) + (x * b);
-			var frames = BufFrames.ir(buf), sr = SampleRate.ir;
-			var phase = Phasor.ar(0, 1, 0, frames);
-			var preNow = pre.lag(0.5), bloomNow = bloom.lag(0.5);
-			var tap = { |d| BufRd.ar(2, buf, (phase - (d * sr) - 1).wrap(0, frames), 1, 2) };
-			var gains = [0.04, 0.07, 0.10, 0.13, 0.16, 0.19, 0.22, 0.25, 0.28, 0.31, 0.34, 0.37];
-			var feed, fb, rev, shimSig, lp, shimNow = shim.lag(0.5);
-			BufWr.ar(src, buf, phase);
-			feed = XFade2.ar(tap.(preNow),
-				Mix.fill(12, { |j| tap.(preNow + (bloomNow * j / 11)) * gains[j] }),
-				((bloomNow * 8).clip(0, 1) * 2) - 1);
-			fb = LocalIn.ar(2);
-			rev = JPverb.ar(feed + fb, t60.lag(0.5), damp.lag(0.5), size, diff.lag(0.5), revMod.lag(0.5), revFreq.lag(0.5));
-			shimSig = HPF.ar(LPF.ar(rev.sum * 0.5, shimCut.lag(0.5)), 250);
-			shimSig = PitchShift.ar(shimSig, 0.1, 2, 0, 0.01) * shimNow;
-			LocalOut.ar([shimSig, shimSig.neg].tanh);
-			rev = rev * (0.55 / (0.45 + (0.55 * shimNow)));
-			lp = OnePole.ar(rev, exp(-2pi * 2000 / sr));
-			rev = lp + (tilt.lag(0.5) * (rev - lp));
-			Out.ar(ret, rev);
-			Out.ar(fed, (x * (1 + (b * (((1 - sp).max(0) ** 0.5) - 1)))) + (rev * (sp ** 0.5) * b));
-		}).add;
+		// Réverbe : la complète (JPverb) et la légère (mode lite, Pi 3).
+		this.addRevDef(\macrocosm_rev, false);
+		this.addRevDef(\macrocosm_rev_lite, true);
 
 		SynthDef(\macrocosm_fx, { |out, inL, inR, wet, mix = 0.5, fxLevel = 1,
 			filter = 0, res = 0.2, space = 0.25, revSend, revRet, revEffect = 1, revAfter = 0,
@@ -427,6 +400,55 @@ Engine_Macrocosm : CroneEngine {
 
 			// Bypass sans traînes : seule l'entrée propre passe, en fondu court.
 			Out.ar(out, LinXFade2.ar(sig, In.ar(clean, 2), (bypass.lag(0.05) * 2) - 1));
+		}).add;
+	}
+
+	// Réverbe : JPverb, précédée d'un pré-délai et de Bloom (12 départs de
+	// plus en plus forts étalés dans le temps, chaque note monte dans
+	// l'espace). Shimmer : une copie de la queue limitée en fréquence,
+	// montée d'une octave, repart dans la réverbe ; le passe-bas fait
+	// qu'elle ne grimpe que d'une ou deux octaves. Tilt : pente autour de
+	// 2 kHz (Air, Warmth).
+	// Légère (lite) : FreeVerb (1,1 % sur Pi 4 contre 12 % pour JPverb), sans
+	// Bloom ; t60 donne le feedback de ses filtres en peigne (plafonné vers
+	// 10 s), et un délai modulé donne Movement. Size et diffusion n'y ont
+	// pas d'équivalent. Le niveau suit la longueur : FreeVerb sort plus fort
+	// quand la queue s'allonge (mesuré contre JPverb, 2026-11-09).
+	addRevDef { |name, light|
+		SynthDef(name, { |in, send, ret, fed, buf, space = 0.25, before = 0,
+			t60 = 4.5, damp = 0.3, size = 2.5, revMod = 0.3, revFreq = 2, diff = 0.707,
+			pre = 0, bloom = 0, tilt = 1, shim = 0, shimCut = 3500|
+			var x = In.ar(in, 2);
+			var sp = space.lag(0.05), b = before.lag(0.05);
+			var src = InFeedback.ar(send, 2) + (x * b);
+			var frames = BufFrames.ir(buf), sr = SampleRate.ir;
+			var phase = Phasor.ar(0, 1, 0, frames);
+			var preNow = pre.lag(0.5), bloomNow = bloom.lag(0.5);
+			var tap = { |d| BufRd.ar(2, buf, (phase - (d * sr) - 1).wrap(0, frames), 1, 2) };
+			var gains = [0.04, 0.07, 0.10, 0.13, 0.16, 0.19, 0.22, 0.25, 0.28, 0.31, 0.34, 0.37];
+			var feed, fb, rev, shimSig, lp, shimNow = shim.lag(0.5);
+			BufWr.ar(src, buf, phase);
+			fb = LocalIn.ar(2);
+			if(light) {
+				var room = (((10 ** (-0.09 / t60.lag(0.5))) - 0.7) / 0.28).clip(0, 1);
+				feed = tap.(preNow) + fb;
+				rev = FreeVerb2.ar(feed[0], feed[1], 1, room, damp.lag(0.5));
+				rev = DelayC.ar(rev, 0.01, 0.004 + (SinOsc.kr(revFreq.lag(0.5) * 0.5, [0, 0.5pi]) * revMod.lag(0.5) * 0.002));
+				rev = rev * (1.3 - (0.75 * room.cubed));
+			} {
+				feed = XFade2.ar(tap.(preNow),
+					Mix.fill(12, { |j| tap.(preNow + (bloomNow * j / 11)) * gains[j] }),
+					((bloomNow * 8).clip(0, 1) * 2) - 1);
+				rev = JPverb.ar(feed + fb, t60.lag(0.5), damp.lag(0.5), size, diff.lag(0.5), revMod.lag(0.5), revFreq.lag(0.5));
+			};
+			shimSig = HPF.ar(LPF.ar(rev.sum * 0.5, shimCut.lag(0.5)), 250);
+			shimSig = PitchShift.ar(shimSig, 0.1, 2, 0, 0.01) * shimNow;
+			LocalOut.ar([shimSig, shimSig.neg].tanh);
+			rev = rev * (0.55 / (0.45 + (0.55 * shimNow)));
+			lp = OnePole.ar(rev, exp(-2pi * 2000 / sr));
+			rev = lp + (tilt.lag(0.5) * (rev - lp));
+			Out.ar(ret, rev);
+			Out.ar(fed, (x * (1 + (b * (((1 - sp).max(0) ** 0.5) - 1)))) + (rev * (sp ** 0.5) * b));
 		}).add;
 	}
 
@@ -625,13 +647,21 @@ Engine_Macrocosm : CroneEngine {
 		[\mix, \fxLevel, \filter, \res, \modDepth, \modRate, \drift, \lofi, \colorAll, \bypass].do { |key|
 			this.addCommand(key, "f", { |msg| fx.set(key, msg[1]) });
 		};
-		this.addCommand(\space, "f", { |msg| fx.set(\space, msg[1]); revSynth.set(\space, msg[1]) });
+		this.addCommand(\space, "f", { |msg|
+			revState.space = msg[1];
+			fx.set(\space, msg[1]);
+			revSynth.set(\space, msg[1]);
+		});
+		// 1 = lite (Pi 3) : réverbe légère, sans Bloom, et moins de têtes.
+		// Changer de réverbe coupe sa queue.
+		this.addCommand(\lite, "i", { |msg| this.setLite(msg[1] > 0) });
 		this.addCommand(\reverb_mode, "i", { |msg| revState.mode = msg[1].clip(0, 5); this.setReverb });
 		this.addCommand(\reverb_character, "f", { |msg| revState.character = msg[1].clip(0, 1); this.setReverb });
 		// 0 sur l'effet, 1 après le mix, 2 avant l'effet
 		this.addCommand(\reverb_position, "i", { |msg|
 			fx.set(\revEffect, (msg[1] == 0).asInteger, \revAfter, (msg[1] == 1).asInteger);
-			revSynth.set(\before, (msg[1] == 2).asInteger);
+			revState.before = (msg[1] == 2).asInteger;
+			revSynth.set(\before, revState.before);
 		});
 
 		// Entrée : 1 = mono (canal gauche sur les deux côtés), 0 = stéréo.
@@ -729,7 +759,7 @@ Engine_Macrocosm : CroneEngine {
 		nextCrush = nil;
 		nextGlide = nil;
 
-		if(this.activeVoices < maxVoices) {
+		if(this.activeVoices < voiceCap) {
 			// add renvoie un nouveau tableau quand il est plein : sans la
 			// réaffectation, le compte plafonnait à 8
 			voiceEnds = voiceEnds.add(Main.elapsedTime + startIn + life + 0.05);
@@ -809,6 +839,18 @@ Engine_Macrocosm : CroneEngine {
 			delaySynth.set(\run, 0, \hold, 0, \fb, delayState.fb.min(0.5));
 			delaySynth = nil;
 		};
+	}
+
+	setLite { |on|
+		if(on != lite) {
+			lite = on;
+			revSynth = Synth.replace(revSynth, if(lite) { \macrocosm_rev_lite } { \macrocosm_rev }, [
+				\in, inBus, \send, revSendBus, \ret, revRetBus, \fed, fedBus, \buf, revBuf,
+				\space, revState.space, \before, revState.before
+			]);
+			this.setReverb;
+		};
+		voiceCap = if(lite) { liteVoices } { maxVoices };
 	}
 
 	// Character : un seul réglage, un rôle par mode ; 0,5 = le son standard.
