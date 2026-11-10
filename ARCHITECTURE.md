@@ -160,6 +160,7 @@ The heads land on the grid with sample accuracy. Here is how:
 - Its states and keys are in `looper.lua`.
 - The audio is in the `macrocosm_looper` SynthDef.
 - The save and load of phrases are in `saveLoop` and `loadLoop` in the engine.
+- MIDI Start and Stop arrive through `clock.transport.start` and `clock.transport.stop`, set in `looper.init`.
 
 **CPU**
 

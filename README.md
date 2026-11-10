@@ -292,7 +292,7 @@ On this page, E2 and E3 still set Activity and Repeats.
 | State | K2 | K3 |
 |---|---|---|
 | empty | **REC** start recording | |
-| armed (rec start) | `ARM` + beats left | **STOP** cancel |
+| armed (rec start) | `ARM` + beats left (`ARM` alone: waiting for MIDI Start) | **STOP** cancel |
 | recording | **REC** blinking, press to close the loop | **STOP** close and stop |
 | playing | **DUB** start overdub | **STOP** |
 | overdubbing | **DUB** blinking, press to stop overdub | **STOP** |
@@ -316,6 +316,16 @@ On norns your hands are on the instrument, so the looper can wait for you. All o
 - **beats per bar**: 4 by default.
 
 With *count-in* and a fixed *rec length*, you press K2 once and play.
+
+### MIDI transport
+
+Set **midi transport** to *on* (PARAMETERS > looper, *off* by default) and the looper follows the Start and Stop messages of your sequencer. norns only receives them when PARAMETERS > CLOCK > **source** is *midi* (or *link*).
+
+- **Start**: an armed recording starts right away, on the sequencer's first beat. A stopped loop plays from its start. A playing loop jumps back to its start, to stay in line with the sequence.
+- **Stop**: like K3. It cancels an armed recording, closes a recording, or stops the loop.
+- While the sequencer is stopped, K2 arms the recording and waits for Start (`ARM`), whatever **rec start** says. With a fixed **rec length**, the loop closes by itself after that many bars of the sequence.
+
+Only the looper follows the transport. The norns clock keeps running at the last tempo while the sequencer is stopped, so the effects keep playing.
 
 ### Other looper settings
 

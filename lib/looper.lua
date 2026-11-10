@@ -11,7 +11,7 @@
 --
 -- ajouts pour jouer sans pédale (pas dans le Microcosm) : départ calé sur la
 -- mesure ou après un décompte, longueur fixée en mesures, quantize à la
--- mesure, clic de métronome.
+-- mesure, clic de métronome, et transport MIDI (Start / Stop) en option.
 
 local looper = {}
 
@@ -42,6 +42,9 @@ local press_clock = {}
 local long_fired = {}
 -- touches enfoncées (pour annoncer l'action d'un appui long à l'écran)
 local held = {}
+-- transport MIDI : false après un Stop, true après un Start, nil tant qu'on
+-- n'en a reçu aucun (on fait alors comme si le séquenceur tournait)
+local transport_running = nil
 
 local function on(id) return params:get(id) == 2 end
 
@@ -145,6 +148,14 @@ end
 -- départ selon « rec start » : tout de suite, à la mesure suivante, ou
 -- après au moins une mesure complète de décompte
 local function arm()
+  -- séquenceur arrêté, transport activé : on attend son Start. L'horloge de
+  -- norns continue d'avancer au dernier tempo pendant l'arrêt, un départ
+  -- « next bar » partirait donc tout seul.
+  if on("loop_transport") and transport_running == false then
+    looper.armed_beat = nil
+    looper.state = "armed"
+    return
+  end
   local mode = params:get("loop_rec_start")
   if mode == 1 then return start_rec() end
   local beats = clock.get_beats()
@@ -301,8 +312,10 @@ end
 function looper.k2_label()
   local s = looper.state
   if held[2] and not on("loop_burst") and (s == "play" or s == "dub") then return "UNDO", false end
-  if s == "armed" and looper.armed_beat then
-    -- décompte : temps restants avant le départ
+  if s == "armed" then
+    -- décompte : temps restants avant le départ ; sans décompte, on attend
+    -- le Start du séquenceur
+    if not looper.armed_beat then return "ARM", true end
     return "ARM" .. math.max(1, math.ceil(looper.armed_beat - clock.get_beats())), true
   end
   if s == "rec" then return "REC", true end
@@ -329,11 +342,41 @@ local function metronome()
     local beats = clock.get_beats()
     local beat = util.round(beats + lead_beats)
     local mode = params:get("metronome")
-    if mode == 3 or (mode == 2 and looper.state == "armed") then
+    if mode == 3 or (mode == 2 and looper.state == "armed" and looper.armed_beat) then
       local accent = beat % bpb() == 0 and 1 or 0
       engine.click(accent, params:get("click_level"), math.max(0, (beat - beats) * beat_sec()))
     end
   end
+end
+
+---------------------------------------------------------------------------
+-- transport MIDI (Start / Stop), si « midi transport » est activé. norns
+-- les transmet quand l'horloge vient du MIDI (ou de Link). Il appelle
+-- clock.transport.start au premier tick après Start, sur le premier temps du
+-- séquenceur, après avoir remis son compteur de temps à zéro.
+
+local function transport_start()
+  transport_running = true
+  if not on("loop_transport") then return end
+  local s = looper.state
+  if s == "armed" then
+    -- le départ armé (en attente ou en décompte) part tout de suite, avec
+    -- le séquenceur ; start_rec invalide le décompte en cours
+    looper.armed_beat = nil
+    start_rec(0, clock.get_beats())
+  elseif s == "stop" then
+    play()
+  elseif s == "play" or s == "dub" then
+    -- la boucle repart du début, calée sur le séquenceur
+    engine.loop_play(1)
+  end
+end
+
+local function transport_stop()
+  transport_running = false
+  if not on("loop_transport") then return end
+  -- comme K3 : annule un départ armé, ferme un enregistrement, arrête la boucle
+  if looper.state ~= "empty" and looper.state ~= "stop" then stop() end
 end
 
 ---------------------------------------------------------------------------
@@ -362,6 +405,7 @@ function looper.add_params()
   params:add_option("loop_route", "routing", { "post-fx", "pre-fx" }, 1)
   params:set_action("loop_route", function(i) engine.loop_route(i - 1) end)
   params:add_option("loop_rec_start", "rec start", { "now", "next bar", "count-in" }, 1)
+  params:add_option("loop_transport", "midi transport", { "off", "on" }, 1)
   params:add_option("loop_length", "rec length", LENGTH_NAMES, 1)
   params:add_option("loop_quantize", "quantize", { "off", "beat", "bar" }, 1)
   params:add_option("loop_burst", "burst", { "off", "on" }, 1)
@@ -395,6 +439,9 @@ function looper.init(loops)
   pp.time = 1 / 15
   pp:start()
   table.insert(loops, clock.run(metronome))
+  -- norns les remet à nil quand le script s'arrête
+  clock.transport.start = transport_start
+  clock.transport.stop = transport_stop
 end
 
 return looper
