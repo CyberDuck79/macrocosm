@@ -108,7 +108,9 @@ function core.tap()
   taps[#taps + 1] = now
   if #taps > 4 then table.remove(taps, 1) end
   if #taps > 1 then
-    params:set("clock_tempo", util.clamp(60 * (#taps - 1) / (now - taps[1]), 20, 300))
+    -- clock_tempo est un nombre entier pour norns, mais Number:set ne
+    -- l'arrondit pas : sans cela, l'écran affichait 70.4427...
+    params:set("clock_tempo", util.round(util.clamp(60 * (#taps - 1) / (now - taps[1]), 20, 300)))
   end
 end
 

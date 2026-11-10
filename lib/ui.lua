@@ -116,7 +116,9 @@ local function draw_param(id, x)
   screen.text(id == "rev_character" and CHARACTER_NAMES[params:get("rev_mode")] or p.name)
   screen.level(15)
   screen.move(x, 46)
-  screen.text(params:string(id))
+  -- le tempo peut arriver non arrondi (modulation, autre script) : on
+  -- l'affiche entier
+  screen.text(id == "clock_tempo" and string.format("%d", util.round(params:get(id))) or params:string(id))
   screen.level(2)
   screen.rect(x, 52, 56, 2)
   screen.fill()
