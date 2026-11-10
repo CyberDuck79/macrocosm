@@ -279,7 +279,9 @@ Engine_Macrocosm : CroneEngine {
 		this.addCommand(\click, "iff", { |msg|
 			this.atLead(msg[3], { Synth(\macrocosm_click, [\out, context.out_b.index, \accent, msg[1], \amp, msg[2]], grpFx, \addToTail) });
 		});
-		this.addCommand(\loop_play, "i", { |msg| looper.set(\play, msg[1], \t_restart, msg[1]) });
+		// 1 : lecture depuis le début ; 2 : reprise là où elle s'était arrêtée
+		// (Continue du transport MIDI, après une pause) ; 0 : arrêt
+		this.addCommand(\loop_play, "i", { |msg| looper.set(\play, (msg[1] > 0).asInteger, \t_restart, (msg[1] == 1).asInteger) });
 		this.addCommand(\loop_dub, "i", { |msg| looper.set(\dub, msg[1]) });
 		this.addCommand(\loop_undo, "", { loopBufs[1].zero });
 		this.addCommand(\loop_erase, "", {

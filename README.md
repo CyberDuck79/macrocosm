@@ -323,6 +323,7 @@ Set **midi transport** to *on* (PARAMETERS > looper, *off* by default) and the l
 
 - **Start**: an armed recording starts right away, on the sequencer's first beat. A stopped loop plays from its start. A playing loop jumps back to its start, to stay in line with the sequence.
 - **Stop**: like K3. It cancels an armed recording, closes a recording, or stops the loop.
+- **Continue** (many sequencers pause with Stop and resume with Continue): a loop stopped by the pause resumes where it stopped, in step with the sequence. An armed recording starts.
 - While the sequencer is stopped, K2 arms the recording and waits for Start (`ARM`), whatever **rec start** says. With a fixed **rec length**, the loop closes by itself after that many bars of the sequence.
 
 Only the looper follows the transport. The norns clock keeps running at the last tempo while the sequencer is stopped, so the effects keep playing.

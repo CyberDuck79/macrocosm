@@ -353,7 +353,8 @@ end
 -- transport MIDI (Start / Stop), si « midi transport » est activé. norns
 -- les transmet quand l'horloge vient du MIDI (ou de Link). Il appelle
 -- clock.transport.start au premier tick après Start, sur le premier temps du
--- séquenceur, après avoir remis son compteur de temps à zéro.
+-- séquenceur, après avoir remis son compteur de temps à zéro. Continue
+-- arrive par midi_in.lua (voir looper.transport_continue).
 
 local function transport_start()
   transport_running = true
@@ -369,6 +370,24 @@ local function transport_start()
   elseif s == "play" or s == "dub" then
     -- la boucle repart du début, calée sur le séquenceur
     engine.loop_play(1)
+  end
+end
+
+-- Continue : reprise après une pause (sur bien des séquenceurs, Play
+-- pendant la lecture met en pause et envoie Stop, Play suivant envoie
+-- Continue). norns ne le transmet pas à clock.transport : midi_in.lua
+-- l'intercepte. La boucle reprend où elle s'était arrêtée, comme la séquence.
+function looper.transport_continue()
+  transport_running = true
+  if not on("loop_transport") then return end
+  local s = looper.state
+  if s == "armed" then
+    looper.armed_beat = nil
+    start_rec(0, clock.get_beats())
+  elseif s == "stop" then
+    engine.loop_dub(0)
+    engine.loop_play(2)
+    looper.state = "play"
   end
 end
 

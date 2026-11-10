@@ -118,7 +118,17 @@ local function build_programs(algos)
 end
 
 local function event(port, data)
-  -- horloge et messages système : pour norns
+  -- Continue (0xFB) : norns ne le transmet pas au script comme Start et
+  -- Stop ; on le prend ici, s'il vient de l'entrée d'horloge de norns
+  -- (CLOCK > midi clock in : all, none, puis les ports)
+  if data[1] == 0xFB then
+    local clock_in = params:get("clock_midi_in")
+    if params:string("clock_source") == "midi" and (clock_in == 1 or clock_in == port + 2) then
+      looper.transport_continue()
+    end
+    return
+  end
+  -- horloge et autres messages système : pour norns
   if data[1] >= 0xF0 or params:get("midi_on") == 1 then return end
   local selected = params:get("midi_port")
   if selected > 1 and selected - 1 ~= port then return end
