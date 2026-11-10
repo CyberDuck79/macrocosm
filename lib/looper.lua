@@ -23,7 +23,8 @@ local MAX_SECONDS = 60
 local LONG_PRESS = 0.6
 -- même réveil anticipé que les têtes (timing.lua) : les départs calés
 -- sur l'horloge sont envoyés d'autant en avance, pour tomber pile
-local LEAD = include("lib/timing").LEAD
+local timing = include("lib/timing")
+local LEAD = timing.LEAD
 -- la phrase est fermée un peu après sa longueur exacte, pour que tout ce
 -- qui est relu ait bien été enregistré
 local CLOSE_MARGIN = 0.01
@@ -115,7 +116,10 @@ function looper.close(next_state)
   end)
 end
 
--- start_beat : temps (beats) où l'enregistrement commence vraiment
+-- lead : dans combien de secondes l'enregistrement commence (bundle
+-- horodaté, à 1,3 ms près) ; start_beat : le temps (beats) auquel il
+-- appartient. Si lead tombe après start_beat (Start MIDI), la phrase se
+-- ferme avec le même retard (voir plus bas).
 local function start_rec(lead, start_beat)
   lead = lead or 0
   start_beat = start_beat or clock.get_beats()
@@ -132,7 +136,7 @@ local function start_rec(lead, start_beat)
   -- un Start, le tempo estimé par norns peut être faux de quelques %.
   local bars = LENGTH_BARS[params:get("loop_length")]
   if bars > 0 and not on("loop_burst") then
-    local late = lead > 0 and 0 or math.max(0, (clock.get_beats() - start_beat) * beat_sec())
+    local late = math.max(0, lead + (clock.get_beats() - start_beat) * beat_sec())
     clock.run(function()
       local end_beat = start_beat + bars * bpb()
       local l = wait_until(end_beat)
@@ -371,7 +375,7 @@ local function transport_start()
     looper.armed_beat = nil
     -- (si le compteur n'a pas été remis à zéro, Link par exemple : maintenant)
     local b = clock.get_beats()
-    start_rec(0, b < 1 and math.min(b, 0) or b)
+    start_rec(timing.SAFETY, b < 1 and math.min(b, 0) or b)
   elseif s == "stop" then
     play()
   elseif s == "play" or s == "dub" then
@@ -390,7 +394,7 @@ function looper.transport_continue()
   local s = looper.state
   if s == "armed" then
     looper.armed_beat = nil
-    start_rec(0, clock.get_beats())
+    start_rec(timing.SAFETY, clock.get_beats())
   elseif s == "stop" then
     engine.loop_dub(0)
     engine.loop_play(2)
