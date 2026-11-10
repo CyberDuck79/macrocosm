@@ -125,15 +125,20 @@ local function start_rec(lead, start_beat)
   looper.state = "rec"
   local id = rec_id
 
-  -- longueur fixée : la phrase se ferme seule au bout de N mesures
+  -- longueur fixée : la phrase se ferme seule au bout de N mesures.
+  -- Parti en retard sur start_beat (Start MIDI, qui arrive sans avance),
+  -- l'enregistrement se ferme avec le même retard : la boucle reste calée
+  -- sur la grille. La longueur est mesurée et non calculée : juste après
+  -- un Start, le tempo estimé par norns peut être faux de quelques %.
   local bars = LENGTH_BARS[params:get("loop_length")]
   if bars > 0 and not on("loop_burst") then
+    local late = lead > 0 and 0 or math.max(0, (clock.get_beats() - start_beat) * beat_sec())
     clock.run(function()
       local end_beat = start_beat + bars * bpb()
-      local len = bars * bpb() * beat_sec()
       local l = wait_until(end_beat)
       if looper.state == "rec" and rec_id == id and not closing then
-        finish(params:get("loop_order") == 2 and "dub" or "play", l + CLOSE_MARGIN, len)
+        local close_in = l + late
+        finish(params:get("loop_order") == 2 and "dub" or "play", close_in, util.time() + close_in - rec_started)
       end
     end)
   end
@@ -362,9 +367,11 @@ local function transport_start()
   local s = looper.state
   if s == "armed" then
     -- le départ armé (en attente ou en décompte) part tout de suite, avec
-    -- le séquenceur ; start_rec invalide le décompte en cours
+    -- le séquenceur, sur le temps 0 ; start_rec invalide le décompte en cours
     looper.armed_beat = nil
-    start_rec(0, clock.get_beats())
+    -- (si le compteur n'a pas été remis à zéro, Link par exemple : maintenant)
+    local b = clock.get_beats()
+    start_rec(0, b < 1 and math.min(b, 0) or b)
   elseif s == "stop" then
     play()
   elseif s == "play" or s == "dub" then
