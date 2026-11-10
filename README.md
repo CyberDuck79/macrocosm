@@ -328,6 +328,8 @@ Set **midi transport** to *on* (PARAMETERS > looper, *off* by default) and the l
 
 Only the looper follows the transport. The norns clock keeps running at the last tempo while the sequencer is stopped, so the effects keep playing.
 
+**Looping a sequencer or a full mix.** Record while the sequence is already playing: **rec start** on *next bar*, a fixed **rec length**, then K2. The first bar of the loop then already holds the effect tails of the bar before it, so the loop joins up like the sequence itself. Set **loop seam** to its minimum (5 ms). A long seam replays what followed the phrase over its start, and with a sequencer that is the next downbeat: the first kick would sound twice. A loop played together with the very part it recorded can still phase slightly, as the two copies may be up to about 1 ms apart.
+
 ### Other looper settings
 
 - **order**: *rec > play > dub* (default) or *rec > dub > play*: what K2 does after recording.
@@ -335,7 +337,7 @@ Only the looper follows the transport. The norns clock keeps running at the last
 - **routing**: *post-fx* (default: records the full output) or *pre-fx* (records the input, and the loop plays back into the effect).
 - **looper only**: the effect is muted; you hear the dry signal and the loop.
 - **loop fade**, **fade**: fades when the loop stops and starts again.
-- **loop seam**: crossfade at the loop point (80 ms by default), so a sustained note does not click when the loop restarts.
+- **loop seam**: at each pass, what was still sounding at the end of the phrase fades out over its start, in this time (80 ms by default, 5 to 500 ms). A sustained note or a reverb tail does not stop dead when the loop restarts. For a sequencer or a full mix, see *MIDI transport* above.
 
 Loops last up to 60 seconds.
 
