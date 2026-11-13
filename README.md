@@ -414,6 +414,10 @@ With the `matrix` mod enabled (SYSTEM > MODS, then restart), every continuous se
 
 **Effect** and **Reverb** mode are lists, which `matrix` does not modulate. Use MIDI Program Change or a preset to switch them.
 
+Modulations are made in **SYSTEM > MODS > matrix**, not in PARAMETERS. Select a setting and press K3. Then choose a source with E2 and set its depth with E3. K3 clears that source.
+
+PARAMETERS > matrix > **mod depths** stays empty until you put something there. In the sources list, **K1 + K3** puts the depth of the selected source in it, marked with `*`. You can then map that depth to a MIDI controller, or modulate it in turn.
+
 ---
 
 ## Parameters menu
